@@ -1,0 +1,113 @@
+\documentclass[12pt]{article}
+\usepackage[english]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{geometry}
+\usepackage{yfonts}
+\usepackage{xfrac}
+\usepackage[c]{esvect}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
+\usepackage{indentfirst} %indentar parágrafos
+\usepackage{amsmath,amsfonts,amsthm,amscd,upref,amstext}	
+\usepackage[titletoc]{appendix}
+\newcommand{\PR}[1]{\ensuremath{\left[#1\right]}}
+\newcommand{\PC}[1]{\ensuremath{\left(#1\right)}}
+\newcommand{\chav}[1]{\ensuremath{\left\{#1\right\}}}
+\geometry{textwidth=6in, textheight=9in, marginparsep=7pt, marginparwidth=.6in, top=30mm, bottom=25mm}
+
+
+\newcommand{\keyword}[1]{\textsf{#1}}
+
+
+\title{Learning with errors}
+\author{Ilmari Vahteristo (1107891)}
+
+\date{\today}
+\begin{document}
+\maketitle
+\singlespacing
+\tableofcontents
+\newpage
+\section{Introduction}
+\label{Introduction}
+\noindent The goal of this project is to get familiar with the Learning With Errors (LWE) cryptosystem. LWE is the basis for many of the most prominent post-quantum encryption algorithms.
+
+\noindent Conceptually, the logic behind the secrecy of LWE is based on representing a secret as a set of linear equations containing noise. This problem can also be viewed as a lattice problem (namely shortest vector problem), which is known to be NP-hard and there is no known polynomial time quantum algorithm either.
+
+\noindent In this report, I will introduce the basic concepts and math behind LWE, and describe a simple public key system utilizing the LWE problem.
+
+\subsection{History}
+\noindent Cryptographic applications are usually based on hard-to-solve problems from mathematics, which have already been studied for years. The progression of LWE is no different.
+In 1996 Miklós Ajtai proposed cryptographic systems, that could be based on the hardness of the Unique Shortest Vector Problem (u-SVP). Together with Cynthia Dwork, they later showed that the problem is as hard on average than in the worst case.
+\noindent Later, in 2005 Oded Regev improved the secureness, and efficiency of a lattice-based cryptosystem, by reducing SVP to a generalized version of "parity learning with errors", which allowed for more memory-efficient encryption. He called it Learning With Errors (LWE). Later, this formulation has been made even more efficient and secure by multiple authors. In a research competition for post-quantum cryptographic algorithm by National Institute of Standards and Technology (NIST), three out of four selected final proposals were based on LWE.
+
+\section{Learning With Errors problem}
+\noindent Learning with errors relies on the hardness of solving this equation:
+\begin{equation}
+\label{LWE_eq}
+    A\boldsymbol{x} = \boldsymbol{y} \: mod\:q \: + \boldsymbol{e},
+\end{equation}
+where $A \in Z^{n\times m}_q$, $\boldsymbol{x} \in Z^m_q$, $\boldsymbol{y} \in Z^n$, and $\boldsymbol{e} \in \chi^n$ where $\chi$ is an error distribution. If $\chi = \{0\}$, then the measures have no error and can be solved in polynomial time with Gaussian elimination.
+
+\noindent By setting $q$, $n$ and $\chi$ appropriately guarantees security and correctness, assuming the hardness of LWE, i.e. there is no algorithm for solving SVP in probabilistic polynomial time.
+
+\subsection{Public key cryptography using LWE}
+\noindent Public Key Cryptography (PKC) is asymmetric cryptography. In PKC, keys are generated as pairs $(p,s)$, where $p$ is the public part of the key, and $s$ is the secret (private) part of the key. The keys are related, and if $p_i$ is used to encrypt a message, then ONLY the related key $s_i$ can decrypt the message.
+
+\noindent Here we will consider an implementation of a PKC system, that is based on the LWE problem. This scheme is one of the simplest, but definitely not among the best since the \emph{"rate"} (size of encryption/size of message) is $O(n)$, and if this was actually used, the size of the encryption would be $>800$ times the size of the original message. Furthermore, the key size is quadratic to the security parameter, which is not good. There are many ways to reduce the rate, and even achieve a rate close to one (ideal), but this report does not consider them.
+
+Let's start by describing the LWE PKC scheme for sending messages between $T(p_t,s_t)$ (transmitter) and $R(p_r,s_r)$ (receiver). The message space $M = \{0,1\}^k$, can represent any sequence of 1's and 0's. So for T to securely send a message $m \in M$, and for R to be able to decrypt it, we need $c = enc(p,m)$ and $m'=dec(s,c)$. We also need the security parameter $n$, error distribution $\chi$, and the modulus $q$.
+
+
+\noindent A key $(p,s)$ is generated with the following steps
+\begin{equation}
+    \label{eq:keygen}
+    \Vec{s} \xleftarrow{} \chi^n, \;
+    A \xleftarrow{} Z^{n\times n}_q, \;
+    \Vec{e} \xleftarrow{} \chi^n, \;
+    \Vec{y} = \Vec{s}A + \Vec{e}, \;
+    (p,\Vec{}s) = ((A,\Vec{y}),\Vec{s})
+\end{equation}
+
+\noindent Define $c = enc(p=(A,\Vec{y}),\Vec{m})$, where the number of bits in $\Vec{m}$ is $k$
+\begin{equation}
+    \label{eq:encode}
+    R,X \xleftarrow{}\chi^{k\times n}, \;
+    \Vec{x'} \xleftarrow{} \chi^{k}, \;
+    W = RA^T + X, \;
+    \Vec{u} = Ry + X' + \Vec{m}\lfloor q/2 \rfloor mod\; q, \;
+    c = (W, \Vec{u})
+\end{equation}
+
+\noindent Define $\Vec{m'} = dec(\Vec{s},c=(W,\Vec{u}))$ as follows
+\begin{equation}
+    \label{eq:decode}
+    \Vec{v} = \Vec{u} - \Vec{s}W^T\:mod\:q, \;\;
+    \Vec{m'} = 0 \;\text{if}\; |v_i| < q /4 \;\text{for}\; v_i \;\text{in}\; \Vec{v} \;\text{else}\; 1
+\end{equation}
+
+\noindent We now have a cryptosystem. The selection of $q$, $\chi$ and $n$ is still an active research topic, but in my implementation as part of this project, I use a discrete, bounded Gaussian distribution for $\chi$. Typically $q$ is an exponential or a polynomial of $n$, and I use $q$ = $n^2$. The specifics depend heavily on the implementation details.
+
+\noindent Some bounds on the amount of error are required to guarantee correctness and this implementation is correct, as long as $\chi_{min} > -\sqrt{\frac{q}{4n}}$ and $\chi_{max} < \sqrt{\frac{q}{4n}}$.
+
+
+
+\section{Implementation}
+\noindent As part of this project, the described cryptosystem is implemented in Python. Also, some tests were created to empirically verify the correctness of the system. There is also a naive method for trying to break the encryption, by calculating the least squares solution to the LWE equation \ref{LWE_eq}, and if there is any noise, it is as bad as random.
+
+\section{References}
+\begin{enumerate}
+\item Lyubashevsky, Vadim, Chris Peikert, and Oded Regev. "On ideal lattices and learning with errors over rings." Journal of the ACM (JACM) 60.6 (2013): 1-35.
+
+\item Regev, Oded. "The learning with errors problem." Invited survey in CCC 7.30 (2010): 11.
+
+\item https://people.csail.mit.edu/vinodv/CS294/lecture1.pdf
+
+\end{enumerate}
+
+\end{document}
